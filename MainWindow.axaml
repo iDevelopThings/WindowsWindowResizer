@@ -1,0 +1,134 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:WinResizer.ViewModels"
+        x:Class="WinResizer.MainWindow"
+        x:DataType="vm:MainViewModel"
+        mc:Ignorable="d"
+        d:DesignWidth="650"
+        d:DesignHeight="400"
+        Title="WinResizer">
+
+
+    <SplitView IsPaneOpen="True"
+               DisplayMode="Inline"
+               OpenPaneLength="300">
+        <SplitView.Pane>
+
+            <ScrollViewer Margin="5">
+                <ListBox x:Name="processes"
+                         ItemsSource="{Binding Windows}"
+                         SelectedItem="{Binding SelectedWindow}"
+                         SelectionChanged="Processes_OnSelectionChanged">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal"
+                                        VerticalAlignment="Center"
+                                        MaxHeight="18">
+                                <Image Height="18"
+                                       Width="18"
+                                       Margin="0,0,10,0"
+                                       Stretch="UniformToFill"
+                                       Source="{Binding Icon}" />
+
+                                <!-- <Image Source="{Binding Icon}" Width="32" Height="32" /> -->
+                                <TextBlock VerticalAlignment="Center"
+                                           Text="{Binding Description }" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </ScrollViewer>
+
+        </SplitView.Pane>
+
+        <Grid>
+            <StackPanel Margin="5"
+                        Name="WindowPanel"
+                        IsVisible="{Binding IsWindowSelected}">
+
+                <StackPanel HorizontalAlignment="Stretch"
+                            VerticalAlignment="Center"
+                            Spacing="10"
+                            Margin="10"
+                            Orientation="Horizontal">
+
+                    <TextBlock Text="{Binding SelectedWindowDescription}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               FontSize="19" />
+
+                    <Button Content="Add as saved"
+                            IsVisible="{Binding !IsSavedWindow}"
+                            Command="{Binding SaveWindowCommand}" />
+
+                    <Button Content="Remove from saved"
+                            IsVisible="{Binding IsSavedWindow}"
+                            Command="{Binding RemoveSavedWindowCommand}" />
+
+                </StackPanel>
+
+                <Expander VerticalAlignment="Top"
+                          HorizontalAlignment="Stretch"
+                          IsExpanded="True">
+                    <Expander.Header>
+                        Window Size
+                    </Expander.Header>
+                    <Grid RowDefinitions="*,*,*"
+                          ColumnDefinitions="150,*">
+                        <TextBlock Grid.Row="0"
+                                   Grid.Column="0"
+                                   Margin="0,5,0,0"
+                                   VerticalAlignment="Center">
+                            Width
+                        </TextBlock>
+                        <TextBox Grid.Row="0"
+                                 Grid.Column="1"
+                                 Margin="0,5,0,0"
+                                 Text="{Binding WindowWidth}"
+                                 Watermark="Window Width" />
+
+                        <TextBlock Grid.Row="1"
+                                   Grid.Column="0"
+                                   Margin="0,5,0,0"
+                                   VerticalAlignment="Center">
+                            Height
+                        </TextBlock>
+                        <TextBox Grid.Row="1"
+                                 Grid.Column="1"
+                                 Margin="0,5,0,0"
+                                 Text="{Binding WindowHeight}"
+                                 Watermark="Window Height" />
+
+                        <Button Grid.Row="2"
+                                Grid.Column="0"
+                                Grid.ColumnSpan="2"
+                                Margin="0,10,0,0"
+                                Content="Resize Window"
+                                HorizontalAlignment="Right"
+                                Command="{Binding ResizeWindowCommand}" />
+                    </Grid>
+                </Expander>
+                <Expander VerticalAlignment="Top"
+                          Margin="0,5,0,0"
+                          HorizontalAlignment="Stretch"
+                          IsExpanded="True">
+                    <Expander.Header>
+                        Window Toggles
+                    </Expander.Header>
+
+                    <Button Content="Set Resizable Border"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            Command="{Binding SetResizableCommand}" />
+
+                </Expander>
+
+
+            </StackPanel>
+        </Grid>
+    </SplitView>
+
+
+</Window>
