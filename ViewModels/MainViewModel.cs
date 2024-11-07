@@ -1,49 +1,18 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Linq;
 using System.Reactive;
+using System.Reactive.Linq;
 using System.Runtime.Serialization;
 using System.Threading.Tasks;
-using System.Windows.Input;
-using CommunityToolkit.Mvvm.Input;
 using ReactiveUI;
 
 namespace WinResizer.ViewModels;
 
 [DataContract]
-public class SavedWindowConfig : ReactiveObject {
-    private Rect _rect = new();
-    [DataMember]
-    public Rect Rect {
-        get => _rect;
-        set => this.RaiseAndSetIfChanged(ref _rect, value);
-    }
-    private bool _isResizable;
-    [DataMember]
-    public bool IsResizable {
-        get => _isResizable;
-        set => this.RaiseAndSetIfChanged(ref _isResizable, value);
-    }
-
-    private string? _processName;
-    [DataMember]
-    public string? ProcessName {
-        get => _processName;
-        set => this.RaiseAndSetIfChanged(ref _processName, value);
-    }
-
-
-    public SavedWindowConfig() { }
-    public SavedWindowConfig(Window window) {
-        ProcessName = window.Description;
-        Rect        = window.Dimensions;
-    }
-}
-
-[DataContract]
-public class MainViewModel : ReactiveObject {
+public class MainViewModel : BaseViewModel {
     private ObservableCollection<SavedWindowConfig> _savedWindows = new();
     [DataMember]
     public ObservableCollection<SavedWindowConfig> SavedWindows {
@@ -51,51 +20,37 @@ public class MainViewModel : ReactiveObject {
         set => this.RaiseAndSetIfChanged(ref _savedWindows, value);
     }
 
-    private ObservableCollection<Window> _windows = new();
+    private ObservableCollection<SystemWindow> _windows = new();
 
     [IgnoreDataMember]
-    public ObservableCollection<Window> Windows {
+    public ObservableCollection<SystemWindow> Windows {
         get => _windows;
         set => this.RaiseAndSetIfChanged(ref _windows, value);
     }
 
-    private Window? _selectedWindow;
+    private SystemWindow? _selectedWindow;
 
     [IgnoreDataMember]
-    public Window? SelectedWindow {
+    public SystemWindow? SelectedWindow {
         get => _selectedWindow;
         set {
-            this.RaiseAndSetIfChanged(ref _selectedWindow, value);
+            var prevWindow = _selectedWindow;
+            var newWindow  = this.RaiseAndSetIfChanged(ref _selectedWindow, value);
+
+            if (prevWindow != null && newWindow != null && !prevWindow.Equals(newWindow)) {
+                prevWindow.IsSelected = false;
+                newWindow.IsSelected  = true;
+            }
+
             this.RaisePropertyChanged(nameof(IsWindowSelected));
             this.RaisePropertyChanged(nameof(SelectedWindowDescription));
             this.RaisePropertyChanged(nameof(IsSavedWindow));
-
-            if (value != null) {
-                WindowWidth  = value.Dimensions.Width;
-                WindowHeight = value.Dimensions.Height;
-            }
         }
     }
 
     public bool    IsSavedWindow             => SelectedWindow != null && GetSavedWindow(SelectedWindow) != null;
     public bool    IsWindowSelected          => SelectedWindow != null;
     public string? SelectedWindowDescription => SelectedWindow?.Description;
-
-    private double _windowWidth;
-
-    [IgnoreDataMember]
-    public double WindowWidth {
-        get => _windowWidth;
-        set => this.RaiseAndSetIfChanged(ref _windowWidth, value);
-    }
-
-    private double _windowHeight;
-
-    [IgnoreDataMember]
-    public double WindowHeight {
-        get => _windowHeight;
-        set => this.RaiseAndSetIfChanged(ref _windowHeight, value);
-    }
 
 
     [IgnoreDataMember]
@@ -109,8 +64,10 @@ public class MainViewModel : ReactiveObject {
     [IgnoreDataMember]
     public ReactiveCommand<Unit, Unit> RemoveSavedWindowCommand { get; }
 
+    public static MainViewModel Get() => RxApp.SuspensionHost.GetAppState<MainViewModel>();
+
     public MainViewModel() {
-        ReloadWindowsCommand = ReactiveCommand.Create(ReloadActiveWindows);
+        ReloadWindowsCommand = ReactiveCommand.CreateFromTask(ReloadWindowsAsync);
 
         ResizeWindowCommand = ReactiveCommand.Create(ResizeWindow);
         SetResizableCommand = ReactiveCommand.Create(SetResizable);
@@ -131,37 +88,20 @@ public class MainViewModel : ReactiveObject {
             SavedWindows.Remove(savedWindow);
             this.RaisePropertyChanged(nameof(IsSavedWindow));
         });
-        /*WindowSelectedCommand = ReactiveCommand.Create(() => {
-            if (SelectedWindow != null) {
-                Console.WriteLine($"Selected window: {SelectedWindow.Description}");
-            }
-        });*/
+
+        Observable.Interval(TimeSpan.FromSeconds(5))
+           .StartWith(0)
+           .ObserveOn(RxApp.MainThreadScheduler)
+           .Subscribe(_ => RefreshProcesses());
     }
+
     private void ResizeWindow() {
-        
-        if (SelectedWindow == null) {
-            return;
-        }
-
-        var newRect = new Rect(
-            SelectedWindow!.Dimensions.Left,
-            SelectedWindow.Dimensions.Top,
-            (int) _windowWidth,
-            (int) _windowHeight
-        );
-
-        try {
-            WindowService.ResizeWindow(SelectedWindow, newRect);
-            SelectedWindow.Dimensions = WinApiService.GetWindowRect(SelectedWindow.WindowHandle);
+        if (SelectedWindow?.Resize() == true) {
             UpdateWindowConfig(SelectedWindow);
-        }
-        catch (Exception e) {
-            Console.WriteLine($"Error resizing window: {e.Message}");
         }
     }
 
     private void SetResizable() {
-        
         if (SelectedWindow == null)
             return;
 
@@ -171,85 +111,66 @@ public class MainViewModel : ReactiveObject {
         });
     }
 
-    public static MainViewModel Get() {
-        return RxApp.SuspensionHost.GetAppState<MainViewModel>();
-    }
-    
-    public Task ReloadWindowsAsync() {
-        return Task.Run(ReloadActiveWindows);
-    }
 
-    public void ReloadActiveWindows() {
+    public Task ReloadWindowsAsync() => Task.Run(RefreshProcesses);
+
+    public void RefreshProcesses() {
         var prevSelectedWindow = SelectedWindow;
 
-        Windows.Clear();
+        var existingWindowList = Windows.ToList();
+        var existingIds        = new HashSet<int>(existingWindowList.Select(p => p.Id));
+        var newProcessesList   = WindowService.GetProcesses().ToList();
 
-        foreach (var process in WindowService.GetProcesses()) {
+        // Remove closed processes
+        foreach (var process in existingWindowList) {
+            if (newProcessesList.Any(p => p.Id == process.Id))
+                continue;
+            Windows.Remove(process);
+
+            if (SelectedWindow != null && SelectedWindow.Id == process.Id) {
+                SelectedWindow = null;
+            }
+
+        }
+
+        // Add new processes
+        foreach (var process in newProcessesList) {
+            if (existingIds.Contains(process.Id))
+                continue;
+
             try {
-                var dimensions = WinApiService.GetWindowRect(process.MainWindowHandle);
-                if (dimensions.IsEmpty) {
-                    continue; // Has a 0 by 0 window, and not meant to display
-                }
-
-                var iconBitmap = WindowService.TryGetProcessIcon(process);
-
-
-                string description;
-                try {
-                    description = process.MainModule?.FileVersionInfo.FileDescription ?? string.Empty;
-                    if (string.IsNullOrEmpty(description)) {
-                        description = process.ProcessName ?? string.Empty;
-                    }
-                }
-                catch (Win32Exception e) {
-                    // check if `Access Denied` error
-                    if (e.NativeErrorCode == 5) {
-                        description = process.ProcessName ?? string.Empty;
-                    } else {
-                        throw;
-                    }
-                }
-
-                Windows.Add(new Window() {
-                    Id           = process.Id.ToString(),
-                    Name         = process.ProcessName,
-                    WindowHandle = process.MainWindowHandle,
-                    Description  = description,
-                    Icon         = iconBitmap,
-                    Dimensions   = dimensions,
-                });
+                Windows.Add(new SystemWindow(process));
             }
             catch (Win32Exception e) {
                 Console.WriteLine($"Error getting window for process {process.ProcessName}: {e.Message}");
-                // Do nothing
             }
         }
 
-        if (prevSelectedWindow != null) {
-            SelectedWindow = Windows.FirstOrDefault(w => w.Equals(prevSelectedWindow));
-        }
+        SelectedWindow = prevSelectedWindow != null
+            ? Windows.FirstOrDefault(w => w.Equals(prevSelectedWindow))
+            : Windows.FirstOrDefault();
     }
 
-    public void UpdateWindowConfig(Window window, Action<SavedWindowConfig>? updateAction = null) {
-        var savedWindow = GetOrCreateSavedWindow(window);
+    public void UpdateWindowConfig(SystemWindow systemWindow, Action<SavedWindowConfig>? updateAction = null) {
+        var savedWindow = GetOrCreateSavedWindow(systemWindow);
         if (savedWindow != null) {
-            savedWindow.Rect = window.Dimensions;
+            savedWindow.Rect = systemWindow.Dimensions;
 
             if (updateAction != null) {
                 updateAction(savedWindow);
             }
         }
     }
-    public SavedWindowConfig? GetSavedWindow(Window? window) {
+    public SavedWindowConfig? GetSavedWindow(SystemWindow? window) {
         return SavedWindows.FirstOrDefault(
             w => w.ProcessName == window?.Name
         );
     }
-    public SavedWindowConfig? GetOrCreateSavedWindow(Window window) {
-        var w = GetSavedWindow(window);
+    public SavedWindowConfig? GetOrCreateSavedWindow(SystemWindow systemWindow) {
+        var w = GetSavedWindow(systemWindow);
 
         if (w == null) {
-            w = new SavedWindowConfig(window);
+            w = new SavedWindowConfig(systemWindow);
             SavedWindows.Add(w);
             // UpdateWindowConfig(window);
         }
@@ -257,8 +178,10 @@ public class MainViewModel : ReactiveObject {
         return w;
     }
 
-    public void AddAsSavedWindow(Window window) {
-        var w = GetOrCreateSavedWindow(window);
+    public void AddAsSavedWindow(SystemWindow systemWindow) {
+        GetOrCreateSavedWindow(systemWindow);
         this.RaisePropertyChanged(nameof(IsSavedWindow));
     }
+
+
 }

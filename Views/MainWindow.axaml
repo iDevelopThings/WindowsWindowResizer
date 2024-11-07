@@ -17,28 +17,35 @@
         <SplitView.Pane>
 
             <ScrollViewer Margin="5">
+
                 <ListBox x:Name="processes"
                          ItemsSource="{Binding Windows}"
                          SelectedItem="{Binding SelectedWindow}"
                          SelectionChanged="Processes_OnSelectionChanged">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel Orientation="Vertical" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <StackPanel Orientation="Horizontal"
-                                        VerticalAlignment="Center"
-                                        MaxHeight="18">
-                                <Image Height="18"
-                                       Width="18"
-                                       Margin="0,0,10,0"
-                                       Stretch="UniformToFill"
-                                       Source="{Binding Icon}" />
+                                <StackPanel Orientation="Horizontal"
+                                            VerticalAlignment="Center"
+                                            MaxHeight="18">
+                                    <Image Height="18"
+                                           Width="18"
+                                           Margin="0,0,10,0"
+                                           Stretch="UniformToFill"
+                                           Source="{Binding Icon, Mode=OneWay}" />
 
-                                <!-- <Image Source="{Binding Icon}" Width="32" Height="32" /> -->
-                                <TextBlock VerticalAlignment="Center"
-                                           Text="{Binding Description }" />
-                            </StackPanel>
+                                    <!-- <Image Source="{Binding Icon}" Width="32" Height="32" /> -->
+                                    <TextBlock VerticalAlignment="Center"
+                                               Text="{Binding Description, Mode=OneWay}" />
+                                </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
+
             </ScrollViewer>
 
         </SplitView.Pane>
@@ -71,6 +78,7 @@
 
                 <Expander VerticalAlignment="Top"
                           HorizontalAlignment="Stretch"
+                          IsEnabled="{Binding IsWindowSelected}"
                           IsExpanded="True">
                     <Expander.Header>
                         Window Size
@@ -86,7 +94,7 @@
                         <TextBox Grid.Row="0"
                                  Grid.Column="1"
                                  Margin="0,5,0,0"
-                                 Text="{Binding WindowWidth}"
+                                 Text="{Binding SelectedWindow.WindowWidth}"
                                  Watermark="Window Width" />
 
                         <TextBlock Grid.Row="1"
@@ -98,7 +106,7 @@
                         <TextBox Grid.Row="1"
                                  Grid.Column="1"
                                  Margin="0,5,0,0"
-                                 Text="{Binding WindowHeight}"
+                                 Text="{Binding SelectedWindow.WindowHeight}"
                                  Watermark="Window Height" />
 
                         <Button Grid.Row="2"

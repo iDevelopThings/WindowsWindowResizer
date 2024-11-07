@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace WinResizer {
+namespace WinResizer;
 
 /// <summary>
 /// Defines a struct that represents a rectangle
@@ -130,6 +130,4 @@ public struct Rect : IEquatable<Rect> {
     public static bool operator !=(Rect rect1, Rect rect2) {
         return !rect1.Equals(rect2);
     }
-}
-
 }

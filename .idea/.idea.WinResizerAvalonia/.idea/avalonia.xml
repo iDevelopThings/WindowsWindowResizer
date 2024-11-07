@@ -5,6 +5,8 @@
       <map>
         <entry key="App.axaml" value="WinResizerAvalonia.csproj" />
         <entry key="MainWindow.axaml" value="WinResizerAvalonia.csproj" />
+        <entry key="Views/App.axaml" value="WinResizerAvalonia.csproj" />
+        <entry key="Views/MainWindow.axaml" value="WinResizerAvalonia.csproj" />
       </map>
     </option>
   </component>

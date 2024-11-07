@@ -1,16 +1,13 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reactive.Disposables;
-using System.Reactive.Linq;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Diagnostics;
-using Avalonia.Input;
 using Avalonia.ReactiveUI;
-using Avalonia.Threading;
 using ReactiveUI;
 using WinResizer.ViewModels;
+
+#if DEBUG
+using Avalonia.Diagnostics;
+using Avalonia.Input;
+#endif
 
 namespace WinResizer;
 
@@ -62,8 +59,8 @@ public partial class MainWindow : ReactiveWindow<MainViewModel> {
     private void Processes_OnSelectionChanged(object? sender, SelectionChangedEventArgs e) {
         if (ViewModel?.SelectedWindow == null)
             return;
-        ViewModel.WindowHeight = ViewModel.SelectedWindow.Dimensions.Height;
-        ViewModel.WindowWidth  = ViewModel.SelectedWindow.Dimensions.Width;
+        // ViewModel.WindowHeight = ViewModel.SelectedWindow.Dimensions.Height;
+        // ViewModel.WindowWidth  = ViewModel.SelectedWindow.Dimensions.Width;
 
     }
 }
